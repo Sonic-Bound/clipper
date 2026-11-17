@@ -1,0 +1,13 @@
+# environment / build output
+.venv/
+build/
+dist/
+__pycache__/
+*.pyc
+
+# generated clips and logs
+clips/
+*.log
+
+# local tooling
+.claude/

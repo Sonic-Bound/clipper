@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ff4d5e'/><path d='M12 9l12 7-12 7z' fill='white'/></svg>">
+<style>
+  :root {
+    --bg: #0d0f14; --panel: #151821; --panel-2: #1b1f2a; --line: #262b38;
+    --text: #e9ecf2; --muted: #8c93a4; --faint: #5d6476;
+    --accent: #ff4d5e; --accent-2: #ff7a59; --ok: #3ccf91; --warn: #ffb547; --live: #ff3b4d;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  a { color: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 24px 80px; }
+
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+  .logo { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 6px 20px #ff4d5e40; }
+  .logo svg { width: 16px; height: 16px; margin-left: 2px; }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  header .spacer { flex: 1; }
+
+  .btn { border: 1px solid var(--line); background: var(--panel-2); padding: 8px 14px; border-radius: 10px;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: background .15s, border-color .15s; text-decoration: none; }
+  .btn:hover { background: #232836; border-color: #333a4b; }
+  .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: 0; font-weight: 600;
+    padding: 0 26px; box-shadow: 0 6px 22px #ff4d5e35; }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.primary:disabled { opacity: .55; cursor: default; filter: none; }
+  .btn.small { padding: 5px 10px; font-size: 12.5px; border-radius: 8px; }
+  .btn.danger:hover { border-color: #ff4d5e80; color: #ff8a95; }
+  .btn svg { width: 14px; height: 14px; }
+
+  /* new clip card */
+  .composer { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+  .url-row { display: flex; gap: 10px; }
+  .url-row input { flex: 1; min-width: 0; height: 50px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--bg); font-size: 15px; outline: none; transition: border-color .15s, box-shadow .15s; }
+  .url-row input:focus { border-color: #ff4d5e90; box-shadow: 0 0 0 4px #ff4d5e1c; }
+  .url-row .btn.primary { height: 50px; font-size: 15px; }
+  .opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; user-select: none; color: var(--muted); }
+  .chip input { display: none; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); transition: background .15s; }
+  .chip:has(input:checked) { color: var(--text); border-color: #ff4d5e66; background: #ff4d5e14; }
+  .chip:has(input:checked) .dot { background: var(--accent); }
+  .opts .toggle-adv { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 6px 4px; }
+  .opts .toggle-adv:hover { color: var(--text); }
+  .adv { display: none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 18px;
+    margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .adv.open { display: grid; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .field input[type=number], .field select { width: 100%; height: 36px; padding: 0 10px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg); outline: none; }
+  .field input[type=range] { width: 100%; accent-color: var(--accent); }
+  .field .hint { font-size: 11.5px; color: var(--faint); margin-top: 4px; }
+  .error { color: #ff8a95; margin-top: 10px; display: none; }
+
+  h2 { font-size: 15px; margin: 34px 0 12px; display: flex; align-items: center; gap: 10px; }
+  h2 .count { color: var(--muted); font-weight: 400; }
+
+  /* jobs */
+  .jobs { display: grid; gap: 10px; }
+  .job { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .job-top { display: flex; align-items: center; gap: 12px; }
+  .badge { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; padding: 3px 7px; border-radius: 6px;
+    background: var(--panel-2); color: var(--muted); flex-shrink: 0; }
+  .badge.live { background: #ff3b4d22; color: #ff6b78; display: inline-flex; align-items: center; gap: 5px; }
+  .badge.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--live); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .job-title { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job-status { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .job-status.done { color: var(--ok); } .job-status.failed { color: #ff8a95; } .job-status.stopping { color: var(--warn); }
+  .job-sub { margin-top: 8px; display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }
+  .bar { height: 4px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 10px; }
+  .bar > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .4s; }
+  .bar.indet > div { width: 30% !important; animation: indet 1.3s ease-in-out infinite; }
+  @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  .log { display: none; margin-top: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; max-height: 240px; overflow: auto; font: 12px/1.5 Consolas, "Cascadia Mono", monospace;
+    color: #b6bccb; white-space: pre-wrap; }
+  .job.show-log .log { display: block; }
+  .linkish { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-size: 12.5px; }
+  .linkish:hover { color: var(--text); }
+  .empty { color: var(--faint); padding: 22px; text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); }
+
+  /* gallery */
+  .filter { margin-left: auto; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel);
+    padding: 0 10px; max-width: 320px; font-weight: 400; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .clip { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+    display: flex; flex-direction: column; }
+  .clip video { width: 100%; aspect-ratio: 9 / 16; background: #000; display: block; object-fit: contain; }
+  .clip.wide video { aspect-ratio: 16 / 9; }
+  .clip-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .clip-title { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .clip-meta { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .clip-meta b { font-size: 15px; }
+  .heat { margin-left: auto; font-size: 11.5px; padding: 2px 7px; border-radius: 6px; background: #ffb54718; color: var(--warn); }
+  .clip-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; flex-wrap: wrap; }
+  .clip-actions .btn { flex: 1; justify-content: center; }
+  .clip-actions .btn.icon { flex: 0 0 auto; padding: 5px 8px; }
+
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: #232836; border: 1px solid #333a4b; padding: 10px 16px; border-radius: 10px; transition: .25s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 18px 16px 60px; }
+    .url-row { flex-direction: column; }
+    header p { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="0 0 16 16" style="margin:0;width:20px;height:20px" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round">
+      <path d="M1.5 4.5v-3h3M11.5 1.5h3v3M14.5 11.5v3h-3M4.5 14.5h-3v-3"/><path d="M6.3 5.2v5.6L10.8 8z" fill="white" stroke="none"/></svg></div>
+    <div>
+      <h1>Clipper</h1>
+      <p>Clips the moments where YouTube chat blows up, with captions.</p>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" onclick="reveal()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5v8h13v-6.5h-7l-1.5-1.5z"/></svg>
+      Clips folder
+    </button>
+  </header>
+
+  <section class="composer">
+    <form class="url-row" onsubmit="startJob(event)">
+      <input id="url" type="url" placeholder="Paste a YouTube video or live stream link" autocomplete="off" required>
+      <button class="btn primary" id="go" type="submit">Clip it</button>
+    </form>
+    <div class="opts">
+      <label class="chip"><input type="checkbox" id="vertical" checked><span class="dot"></span>Vertical 9:16</label>
+      <label class="chip"><input type="checkbox" id="captions" checked><span class="dot"></span>Captions</label>
+      <button class="toggle-adv" type="button" onclick="toggleAdv()" id="advBtn">Settings ▾</button>
+    </div>
+    <div class="adv" id="adv">
+      <div class="field">
+        <label for="top">Max clips (videos)</label>
+        <input type="number" id="top" min="1" max="30" value="5">
+      </div>
+      <div class="field">
+        <label for="sens">Sensitivity: <span id="sensLabel">Normal</span></label>
+        <input type="range" id="sens" min="1" max="5" step="1" value="3" oninput="sensChanged()">
+        <div class="hint">Higher catches smaller chat spikes</div>
+      </div>
+      <div class="field">
+        <label for="pre">Seconds before the peak</label>
+        <input type="number" id="pre" min="3" max="120" value="25">
+      </div>
+      <div class="field">
+        <label for="post">Seconds after the peak</label>
+        <input type="number" id="post" min="1" max="60" value="10">
+      </div>
+      <div class="field">
+        <label for="model">Caption quality</label>
+        <select id="model">
+          <option value="tiny">Fastest (tiny)</option>
+          <option value="base">Fast (base)</option>
+          <option value="small" selected>Balanced (small)</option>
+          <option value="medium">Accurate (medium, slow)</option>
+          <option value="large-v3">Best (large-v3, very slow)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="language">Spoken language</label>
+        <select id="language">
+          <option value="">Detect automatically</option>
+          <option value="en">English</option><option value="hi">Hindi</option><option value="es">Spanish</option>
+          <option value="pt">Portuguese</option><option value="fr">French</option><option value="de">German</option>
+          <option value="ja">Japanese</option><option value="ko">Korean</option><option value="ar">Arabic</option>
+          <option value="ru">Russian</option><option value="id">Indonesian</option><option value="tr">Turkish</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="maxmin">Live: stop watching after (minutes)</label>
+        <input type="number" id="maxmin" min="0" value="0">
+        <div class="hint">0 = until the stream ends or you press Stop</div>
+      </div>
+    </div>
+    <div class="error" id="err"></div>
+  </section>
+
+  <h2>Jobs <span class="count" id="jobCount"></span></h2>
+  <div class="jobs" id="jobs"><div class="empty">Paste a link above to start. Live streams are watched until you stop them.</div></div>
+
+  <h2>Clips <span class="count" id="clipCount"></span>
+    <select class="filter" id="filter" onchange="renderClips()"><option value="">All videos</option></select>
+  </h2>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="noClips">No clips yet.</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const SENS = { 1: [5.0, "Low"], 2: [4.2, "Lower"], 3: [3.5, "Normal"], 4: [2.8, "Higher"], 5: [2.2, "High"] };
+const PREF_KEYS = ["vertical", "captions", "top", "sens", "pre", "post", "model", "language", "maxmin"];
+let clips = [], jobsSig = "", openLogs = new Set();
+
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400); }
+function sensChanged() { $("sensLabel").textContent = SENS[$("sens").value][1]; savePrefs(); }
+function toggleAdv() { const a = $("adv"); a.classList.toggle("open"); $("advBtn").textContent = a.classList.contains("open") ? "Settings ▴" : "Settings ▾"; }
+
+function savePrefs() {
+  try { const p = {}; PREF_KEYS.forEach(k => { const el = $(k); p[k] = el.type === "checkbox" ? el.checked : el.value; });
+        localStorage.setItem("clipper-prefs", JSON.stringify(p)); } catch (e) {}
+}
+function loadPrefs() {
+  try { const p = JSON.parse(localStorage.getItem("clipper-prefs") || "{}");
+        PREF_KEYS.forEach(k => { if (k in p) { const el = $(k); if (el.type === "checkbox") el.checked = p[k]; else el.value = p[k]; } }); } catch (e) {}
+  $("sensLabel").textContent = SENS[$("sens").value][1];
+}
+PREF_KEYS.forEach(k => $(k).addEventListener("change", savePrefs));
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
+  if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch (e) {} throw new Error(m); }
+  return r.json();
+}
+
+async function startJob(e) {
+  e.preventDefault();
+  $("err").style.display = "none";
+  const body = {
+    url: $("url").value, top: +$("top").value || 5, vertical: $("vertical").checked, captions: $("captions").checked,
+    model: $("model").value, language: $("language").value, threshold: SENS[$("sens").value][0],
+    pre: +$("pre").value || 25, post: +$("post").value || 10, max_minutes: +$("maxmin").value || 0,
+  };
+  $("go").disabled = true;
+  try { await api("/api/jobs", { method: "POST", body: JSON.stringify(body) }); $("url").value = ""; toast("Started"); refreshJobs(); }
+  catch (err) { $("err").textContent = err.message; $("err").style.display = "block"; }
+  finally { $("go").disabled = false; }
+}
+
+function elapsed(job) {
+  const s = Math.max(0, Math.round(((job.ended || Date.now() / 1000) - job.started)));
+  return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${Math.floor(s / 3600)}h ${Math.floor(s % 3600 / 60)}m`;
+}
+function statusText(j) {
+  if (j.status === "running") {
+    if (j.kind === "live") return "Watching chat";
+    if (j.progress) return `Rendering clip ${j.progress}`;
+    const last = j.log[j.log.length - 1] || "";
+    if (/chat replay/i.test(last)) return "Reading chat replay…";
+    if (/comments/i.test(last)) return "Scanning comments…";
+    return "Finding the hype…";
+  }
+  return { stopping: "Stopping… finishing clips", stopped: "Stopped", done: "Done", failed: "Failed" }[j.status] || j.status;
+}
+
+function renderJobs(list) {
+  $("jobCount").textContent = list.length ? list.length : "";
+  if (!list.length) { $("jobs").innerHTML = '<div class="empty">Paste a link above to start. Live streams are watched until you stop them.</div>'; return; }
+  $("jobs").innerHTML = list.map(j => {
+    const running = j.status === "running" || j.status === "stopping";
+    const [i, n] = (j.progress || "0/0").split("/").map(Number);
+    const pct = n ? Math.round(((i - 1) / n) * 100) : 0;
+    const badge = j.kind === "live" ? '<span class="badge live">LIVE</span>' : `<span class="badge">${j.kind === "video" ? "VIDEO" : "…"}</span>`;
+    const sub = [
+      `${j.clips} clip${j.clips === 1 ? "" : "s"}`,
+      j.kind === "live" && j.chat_rate ? `chat: ${esc(j.chat_rate)}` : "",
+      elapsed(j),
+    ].filter(Boolean).map(x => `<span>${x}</span>`).join("");
+    const bar = running && j.status === "running"
+      ? (j.kind === "video" && n ? `<div class="bar"><div style="width:${pct}%"></div></div>` : `<div class="bar indet"><div></div></div>`) : "";
+    const lastErr = j.status === "failed" ? (j.log.filter(l => /error|failed|!/i.test(l)).pop() || j.log[j.log.length - 1] || "") : "";
+    return `<div class="job ${openLogs.has(j.id) ? "show-log" : ""}" data-id="${j.id}">
+      <div class="job-top">${badge}
+        <div class="job-title" title="${esc(j.url)}">${esc(j.title || j.url)}</div>
+        <span class="job-status ${j.status}">${statusText(j)}</span>
+        ${j.status === "running" ? `<button class="btn small danger" onclick="stopJob('${j.id}')">Stop</button>`
+          : running ? "" : `<button class="btn small" onclick="dismissJob('${j.id}')" title="Remove from list">✕</button>`}
+      </div>
+      <div class="job-sub">${sub}<button class="linkish" onclick="toggleLog('${j.id}')">${openLogs.has(j.id) ? "Hide log" : "Show log"}</button></div>
+      ${lastErr ? `<div class="job-sub" style="color:#ff8a95">${esc(lastErr)}</div>` : ""}
+      ${bar}
+      <div class="log">${esc(j.log.join("\n"))}</div>
+    </div>`;
+  }).join("");
+  document.querySelectorAll(".job.show-log .log").forEach(l => l.scrollTop = l.scrollHeight);
+}
+
+function toggleLog(id) { openLogs.has(id) ? openLogs.delete(id) : openLogs.add(id); refreshJobs(true); }
+async function stopJob(id) { await api(`/api/jobs/${id}/stop`, { method: "POST" }); toast("Stopping…"); refreshJobs(true); }
+async function dismissJob(id) { await api(`/api/jobs/${id}/dismiss`, { method: "POST" }); refreshJobs(true); }
+
+async function refreshJobs(force) {
+  try {
+    const list = await api("/api/jobs");
+    const sig = JSON.stringify(list.map(j => [j.id, j.status, j.clips, j.progress, j.chat_rate, j.title, j.log.length, openLogs.has(j.id)]));
+    const clipSig = JSON.stringify(list.map(j => [j.id, j.clips, j.status]));
+    if (force || sig !== jobsSig || list.some(j => j.status === "running")) renderJobs(list);
+    if (clipSig !== refreshJobs._clipSig) { refreshJobs._clipSig = clipSig; refreshClips(); }
+    jobsSig = sig;
+  } catch (e) {}
+}
+
+async function refreshClips() {
+  try { clips = await api("/api/clips"); } catch (e) { return; }
+  const titles = [...new Set(clips.map(c => c.title))];
+  const f = $("filter"), cur = f.value;
+  f.innerHTML = '<option value="">All videos</option>' + titles.map(t => `<option ${t === cur ? "selected" : ""}>${esc(t)}</option>`).join("");
+  renderClips();
+}
+
+function renderClips() {
+  const want = $("filter").value;
+  const list = clips.filter(c => !want || c.title === want);
+  $("clipCount").textContent = list.length ? list.length : "";
+  $("noClips").style.display = list.length ? "none" : "block";
+  const grid = $("grid");
+  // keep existing video elements (don't interrupt playback) when nothing changed
+  const sig = list.map(c => c.src + c.size).join("|");
+  if (grid._sig === sig) return;
+  grid._sig = sig;
+  grid.innerHTML = list.map(c => `
+    <div class="clip" data-src="${esc(c.src)}">
+      <video src="${esc(c.src)}?v=${c.size}#t=0.5" controls preload="metadata" playsinline
+        onloadedmetadata="if(this.videoWidth>this.videoHeight)this.closest('.clip').classList.add('wide')"
+        onerror="reportVideo(this)"></video>
+      <div class="clip-body">
+        <div class="clip-title" title="${esc(c.title)}">${esc(c.title)}</div>
+        <div class="clip-meta"><span style="color:var(--muted)">at</span> <b>${esc(c.moment)}</b>
+          ${c.score != null ? `<span class="heat" title="How far chat rose above normal">🔥 ${(+c.score).toFixed(1)}</span>` : ""}</div>
+        <div class="clip-actions">
+          <a class="btn small" href="${esc(c.src)}" download="${esc(c.file)}">Download</a>
+          <button class="btn small icon" title="Show in folder" onclick='reveal(${JSON.stringify(c.folder)}, ${JSON.stringify(c.file)})'>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5v8h13v-6.5h-7l-1.5-1.5z"/></svg></button>
+          ${c.youtube ? `<a class="btn small icon" title="Open on YouTube" href="${esc(c.youtube)}" target="_blank" rel="noopener">
+            <svg viewBox="0 0 16 16"><path d="M5.5 4l7 4-7 4z" fill="currentColor"/></svg></a>` : ""}
+          <button class="btn small icon danger" title="Delete (moved to clips/_deleted)" onclick='delClip(${JSON.stringify(c.folder)}, ${JSON.stringify(c.file)})'>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/></svg></button>
+        </div>
+      </div>
+    </div>`).join("");
+}
+
+async function reveal(folder = "", file = "") { try { await api("/api/reveal", { method: "POST", body: JSON.stringify({ folder, file }) }); } catch (e) { toast(e.message); } }
+async function delClip(folder, file) {
+  if (!confirm(`Delete ${file}?\n\nIt is moved to clips/_deleted, so you can still get it back.`)) return;
+  await api("/api/clips/delete", { method: "POST", body: JSON.stringify({ folder, file }) });
+  toast("Clip deleted"); refreshClips();
+}
+
+function clientLog(msg) { fetch("/api/client-log", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ msg }) }).catch(() => {}); }
+function reportVideo(v) { clientLog(`video error code=${v.error && v.error.code} msg=${v.error && v.error.message} src=${v.currentSrc}`); }
+window.addEventListener("error", e => clientLog(`js error: ${e.message} @${e.lineno}`));
+
+loadPrefs();
+refreshJobs(true);
+refreshClips();
+setInterval(refreshJobs, 1500);
+setInterval(refreshClips, 15000);
+</script>
+</body>
+</html>

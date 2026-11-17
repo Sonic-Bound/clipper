@@ -1,0 +1,9 @@
+yt-dlp[default]>=2026.10.26
+deno>=2.0          # JavaScript runtime yt-dlp needs for YouTube
+imageio-ffmpeg>=0.8 # bundled ffmpeg (a system ffmpeg on PATH is used first if present)
+faster-whisper>=1.2
+numpy
+fastapi>=0.115
+uvicorn>=0.30
+pywebview>=5.0     # desktop window (uses the Edge WebView2 runtime built into Windows)
+pillow             # only for tools_make_icon.py
