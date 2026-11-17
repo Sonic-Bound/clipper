@@ -7,7 +7,7 @@
 **Turns the moments where YouTube chat blows up into captioned, vertical clips.**
 Works on live streams as they happen, on past streams, and on normal videos.
 
-[![Download for Windows](https://img.shields.io/badge/Download-Windows%20x64-ff4d5e?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Sonic-Bound/clipper/releases/latest/download/Clipper-windows-x64.zip)
+[![Download for Windows](https://img.shields.io/badge/Download-Windows%20x64-ff4d5e?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Sonic-Bound/clipper/releases/latest/download/Clipper-Setup.exe)
 
 [![Latest release](https://img.shields.io/github/v/release/Sonic-Bound/clipper?color=ff7a59)](https://github.com/Sonic-Bound/clipper/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-3ccf91)](LICENSE)
@@ -40,17 +40,16 @@ Speech is transcribed **on your PC** with Whisper, so nothing is uploaded anywhe
 
 ## Install
 
-1. **[Download Clipper-windows-x64.zip](https://github.com/Sonic-Bound/clipper/releases/latest/download/Clipper-windows-x64.zip)** (about 200 MB)
-2. Right-click the zip → **Extract All…**, and put the folder wherever you like (e.g. `Documents\Clipper`).
-3. Open the folder and double-click **`Clipper.exe`**.
+1. **[Download Clipper-Setup.exe](https://github.com/Sonic-Bound/clipper/releases/latest/download/Clipper-Setup.exe)** (about 135 MB)
+2. Double-click it and follow the steps. No administrator rights needed.
+3. Open **Clipper** from the Start menu (or the Desktop shortcut).
 
-Everything Clipper needs (Python, ffmpeg, yt-dlp, Whisper) is inside the folder; there is nothing else to install. Keep `Clipper.exe` next to its `_internal` folder.
+Everything Clipper needs (Python, ffmpeg, yt-dlp, Whisper) is included; there is nothing else to install. To update, run the newer setup over the old one; your clips are kept. To remove it, use **Settings → Apps → Installed apps → Clipper → Uninstall**.
+
+<sub>Prefer no installer? Each release also has a portable **[Clipper-windows-x64.zip](https://github.com/Sonic-Bound/clipper/releases/latest/download/Clipper-windows-x64.zip)**: extract it anywhere and run `Clipper.exe` (keep it next to its `_internal` folder).</sub>
 
 > [!NOTE]
-> **"Windows protected your PC"?** Clipper isn't code-signed (signing certificates cost money), so Windows SmartScreen warns about new downloads. Click **More info → Run anyway**. You only need to do this once.
-
-> [!TIP]
-> To add a Start-menu entry, right-click `Clipper.exe` → **Show more options → Pin to Start**.
+> **"Windows protected your PC"?** Clipper isn't code-signed (signing certificates cost money), so Windows SmartScreen warns about new downloads. Click **More info → Run anyway**.
 
 **Requirements:** Windows 10 or 11 (64-bit), with the Microsoft Edge WebView2 runtime, which Windows 11 and up-to-date Windows 10 already have. An internet connection is needed for YouTube and for the one-time caption model download (a few hundred MB for the default quality) on your first captioned clip.
 
@@ -136,6 +135,8 @@ From source, clips go to `clips/<title> [id]/` with a `clips.json` listing each 
 ```
 
 The app ends up in `dist\Clipper`. It's a folder build on purpose: the app runs itself as a helper for every job and download, and a single-file exe would unpack ~460 MB to a temp folder each time. `install_shortcuts.py` adds Desktop and Start-menu shortcuts to it.
+
+To build `Clipper-Setup.exe`, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run `ISCC installer.iss`; the installer lands in `dist`.
 
 </details>
 
