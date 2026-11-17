@@ -59,7 +59,7 @@ Everything Clipper needs (Python, ffmpeg, yt-dlp, Whisper) is inside the folder;
 - **Clips are saved in `Videos\Clipper`**, one folder per video. **Clips folder** in the app opens it.
 - **Vertical 9:16** and **Captions** are on by default; click them to turn off.
 - **Settings** sets how many clips to cut, sensitivity (higher catches smaller spikes), seconds before and after the peak, caption quality (Fastest → Best), and spoken language. Your choices are remembered.
-- **Live streams** are watched until you press **Stop** or the stream ends. Clips that are in progress are finished first.
+- **Live streams** are watched until you press **Stop** or the stream ends, even for many hours. If your internet drops or YouTube's stream link expires, Clipper checks whether the stream is still live and reconnects by itself (it keeps trying for 15 minutes). Clips that are in progress are finished first.
 - **Delete** moves a clip to `Videos\Clipper\_deleted`, so you can get it back.
 - Each job's **Show log** shows exactly what it is doing. If the app itself won't open, the reason is in `%LOCALAPPDATA%\Clipper\clipper.log`.
 
@@ -134,7 +134,8 @@ The app ends up in `dist\Clipper`. It's a folder build on purpose: the app runs 
 
 ## Good to know
 
-- Live mode keeps a temporary recording of the stream (about 2 GB per hour at 1080p) and deletes it when you stop.
+- Live mode keeps a temporary recording of the stream (about 2 GB per hour at 1080p) and deletes it when you stop, so make sure there is disk space for long streams.
+- Keep your PC awake while watching a live stream; sleep stops the recording.
 - Clipping and reposting other creators' content may need their permission. Check the channel's rules and YouTube's Terms of Service.
 
 ## Built with
