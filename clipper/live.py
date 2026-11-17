@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .chat import follow_live_chat, video_info
-from .heat import HeatTracker, message_heat
+from .heat import LiveSpikeDetector, message_heat
 from .render import cut_local, finish_clip
 from .tools import ffmpeg_exe, run, ytdlp_cmd
 
@@ -191,11 +191,11 @@ def watch_live(url: str, info: dict, out_dir: Path, args) -> None:
     threading.Thread(target=chat_thread, daemon=True).start()
     print("  following chat... (Ctrl+C to stop)\n")
 
-    tracker = HeatTracker(args.window, args.baseline)
+    detector = LiveSpikeDetector(window=args.window, baseline=args.baseline, threshold=args.threshold,
+                                 min_rate=args.min_rate, min_jump=args.min_jump, min_gap=args.min_gap,
+                                 per_hour=args.top)
     heat: dict[int, float] = {}
     next_sec = int(t0)
-    spike = None  # [start_sec, peak_sec, peak_z, peak_rate]
-    last_clip_peak = -1e9
     pool = ThreadPoolExecutor(max_workers=1)
     manifest: list[dict] = []
     n = 0
@@ -268,23 +268,21 @@ def watch_live(url: str, info: dict, out_dir: Path, args) -> None:
 
             # score every second whose chat should have fully arrived by now
             while next_sec <= time.time() - CHAT_LAG:
-                rate, z = tracker.push(heat.pop(next_sec, 0.0))
-                if args.verbose:
-                    print(f"    {_fmt(next_sec - t0)} rate={rate:5.2f} z={z:5.2f}")
-                hot = z >= args.threshold and rate >= args.min_rate
-                if spike is None and hot and next_sec - last_clip_peak >= args.min_gap:
-                    spike = [next_sec, next_sec, z, rate]
-                    print(f"  🔥 chat spike at {_fmt(next_sec - t0)} (z={z:.1f}, {rate:.1f} msg/s)")
-                elif spike is not None:
-                    if z > spike[2]:
-                        spike[1], spike[2], spike[3] = next_sec, z, rate
-                    if z < args.threshold / 2 or next_sec - spike[0] > 30:
+                for ev in detector.push(next_sec, heat.pop(next_sec, 0.0)):
+                    if ev[0] == "spike":
+                        _, sec, z, rate, jump = ev
+                        print(f"  🔥 chat spike at {_fmt(sec - t0)} (z={z:.1f}, {rate:.1f} msg/s, {jump:.1f}x normal)")
+                    elif ev[0] == "skip":
+                        print(f"  · chat spike at {_fmt(ev[1] - t0)} skipped: already {ev[2]} clips "
+                              f"this hour (limit {args.top}/hour)")
+                    else:
+                        _, peak, z = ev
                         n += 1
-                        peak = spike[1] - args.window / 2
-                        last_clip_peak = spike[1]
-                        print(f"  ✂ clipping #{n} around {_fmt(peak - t0)} (peak z={spike[2]:.1f})")
-                        pool.submit(make_clip, n, peak, spike[2])
-                        spike = None
+                        print(f"  ✂ clipping #{n} around {_fmt(peak - t0)} (peak z={z:.1f})")
+                        pool.submit(make_clip, n, peak, z)
+                if args.verbose:
+                    rate, z, jump = detector.last
+                    print(f"    {_fmt(next_sec - t0)} rate={rate:5.2f} z={z:5.2f} x{jump:.1f}")
                 next_sec += 1
             time.sleep(0.5)
     except KeyboardInterrupt:
@@ -296,3 +294,16 @@ def watch_live(url: str, info: dict, out_dir: Path, args) -> None:
         if not args.keep_recording:
             time.sleep(1)
             rec.delete_files()
+            _tidy(work, out_dir)
+
+
+def _tidy(work: Path, out_dir: Path) -> None:
+    """Remove the work folder, and the video's folder too if no clip was made."""
+    import shutil
+
+    shutil.rmtree(work, ignore_errors=True)
+    try:
+        if not any(out_dir.glob("clip_*.mp4")):
+            shutil.rmtree(out_dir, ignore_errors=True)
+    except OSError:
+        pass

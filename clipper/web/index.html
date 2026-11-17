@@ -148,13 +148,14 @@
     </div>
     <div class="adv" id="adv">
       <div class="field">
-        <label for="top">Max clips (videos)</label>
+        <label for="top">Max clips (live: per hour)</label>
         <input type="number" id="top" min="1" max="30" value="5">
+        <div class="hint">Videos: in total. Live streams: at most this many each hour</div>
       </div>
       <div class="field">
         <label for="sens">Sensitivity: <span id="sensLabel">Normal</span></label>
         <input type="range" id="sens" min="1" max="5" step="1" value="3" oninput="sensChanged()">
-        <div class="hint">Higher catches smaller chat spikes</div>
+        <div class="hint">Normal: chat must at least double. Low: triple. High: 1.5×</div>
       </div>
       <div class="field">
         <label for="pre">Seconds before the peak</label>
@@ -206,7 +207,8 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const SENS = { 1: [5.0, "Low"], 2: [4.2, "Lower"], 3: [3.5, "Normal"], 4: [2.8, "Higher"], 5: [2.2, "High"] };
+// [z-score threshold, label, how many times its normal rate chat must reach]
+const SENS = { 1: [5.0, "Low", 3.0], 2: [4.2, "Lower", 2.5], 3: [3.5, "Normal", 2.0], 4: [2.8, "Higher", 1.7], 5: [2.2, "High", 1.5] };
 const PREF_KEYS = ["vertical", "captions", "top", "sens", "pre", "post", "model", "language", "maxmin"];
 let clips = [], jobsSig = "", openLogs = new Set();
 
@@ -237,7 +239,7 @@ async function startJob(e) {
   $("err").style.display = "none";
   const body = {
     url: $("url").value, top: +$("top").value || 5, vertical: $("vertical").checked, captions: $("captions").checked,
-    model: $("model").value, language: $("language").value, threshold: SENS[$("sens").value][0],
+    model: $("model").value, language: $("language").value, threshold: SENS[$("sens").value][0], min_jump: SENS[$("sens").value][2],
     pre: +$("pre").value || 25, post: +$("post").value || 10, max_minutes: +$("maxmin").value || 0,
   };
   $("go").disabled = true;

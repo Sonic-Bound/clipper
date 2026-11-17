@@ -58,7 +58,7 @@ Everything Clipper needs (Python, ffmpeg, yt-dlp, Whisper) is inside the folder;
 
 - **Clips are saved in `Videos\Clipper`**, one folder per video. **Clips folder** in the app opens it.
 - **Vertical 9:16** and **Captions** are on by default; click them to turn off.
-- **Settings** sets how many clips to cut, sensitivity (higher catches smaller spikes), seconds before and after the peak, caption quality (Fastest → Best), and spoken language. Your choices are remembered.
+- **Settings** sets how many clips to cut (on live streams: at most that many per hour), sensitivity (how big a jump in chat counts), seconds before and after the peak, caption quality (Fastest → Best), and spoken language. Your choices are remembered.
 - **Live streams** are watched until you press **Stop** or the stream ends, even for many hours. If your internet drops or YouTube's stream link expires, Clipper checks whether the stream is still live and reconnects by itself (it keeps trying for 15 minutes). Clips that are in progress are finished first.
 - **Delete** moves a clip to `Videos\Clipper\_deleted`, so you can get it back.
 - Each job's **Show log** shows exactly what it is doing. If the app itself won't open, the reason is in `%LOCALAPPDATA%\Clipper\clipper.log`.
@@ -67,7 +67,13 @@ Caption speed depends on your PC: on a typical CPU, a 35-second clip takes a min
 
 ## How a "chat spike" is found
 
-Every second of chat gets a heat score: one point per message, more for Super Chats and memberships, plus a bonus for hype (LOL, LMAO, KEKW, W, "clip it", 💀😂🔥, ALL CAPS). The score is smoothed over 10 seconds and compared with the stream's own normal level over the last 5 minutes, so a 50,000-viewer stream and a 200-viewer stream are each judged against themselves. A moment counts when it rises well above normal (a robust z-score of 3.5 by default; the sensitivity slider changes this).
+Every second of chat gets a heat score: one point per message, more for Super Chats and memberships, plus a bonus for hype (LOL, LMAO, KEKW, W, "clip it", 💀😂🔥, ALL CAPS). The score is smoothed over 10 seconds and compared with the stream's own normal level over the last 5 minutes, so a 50,000-viewer stream and a 200-viewer stream are each judged against themselves. A moment counts when it rises well above normal: a robust z-score of 3.5, and at least **double** the normal chat rate (the sensitivity slider changes both: Low needs 3×, High 1.5×).
+
+Long live streams and marathons, where chat is busy all the time, are not clipped end to end:
+
+- a chat that is always busy is the stream's *normal*, so it does not count as a spike by itself;
+- after a clip, chat has to calm down before the next spike counts, so one long hype wave gives one clip, not one a minute;
+- on live streams, **Max clips** is a per-hour limit (5 by default); spikes over the limit are skipped and the job log says so.
 
 On live streams, Clipper reads YouTube's full **Live chat** feed rather than the filtered *Top chat*. YouTube delivers live chat 10–20 s late, so a live clip is saved about half a minute after the moment happens.
 
@@ -97,7 +103,7 @@ Then start the desktop app with `Clipper.bat`, or use the command line:
 
 ```bash
 .\clip.bat URL --horizontal                   # keep 16:9 (clips are 9:16 by default)
-.\clip.bat URL -n 10 --pre 30 --post 15       # 10 clips, 30 s before / 15 s after the chat peak
+.\clip.bat URL -n 10 --pre 30 --post 15       # 10 clips (per hour on live), 30 s before / 15 s after the peak
 .\clip.bat URL --dry-run                      # just list the moments, download nothing
 .\clip.bat LIVE_URL --max-minutes 120         # watch a live stream for 2 hours
 .\clip.bat URL --model medium --language hi   # better / non-English captions
@@ -106,6 +112,7 @@ Then start the desktop app with `Clipper.bat`, or use the command line:
 | Option | Default | Effect |
 |---|---|---|
 | `--threshold` | 3.5 | lower = more clips, higher = only huge moments |
+| `--min-jump` | 2.0 | chat must reach this many times its normal rate |
 | `--min-rate` | 0.3 | ignore spikes slower than this many messages per second |
 | `--min-gap` | 60 | minimum seconds between clips |
 | `--skip-start` | 90 | ignore the "hi chat" flood at the start of a past stream |

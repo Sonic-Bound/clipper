@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("url", help="YouTube video / live stream URL")
     p.add_argument("-o", "--out", default="clips", help="output folder (default: clips)")
-    p.add_argument("-n", "--top", type=int, default=5, help="max clips for a recorded video (default 5)")
+    p.add_argument("-n", "--top", type=int, default=5, help="max clips for a recorded video, or per hour on a live stream (default 5)")
     p.add_argument("--pre", type=float, default=25, help="seconds before the chat peak (default 25)")
     p.add_argument("--post", type=float, default=10, help="seconds after the chat peak (default 10)")
     p.add_argument("--source", choices=["auto", "chat", "heatmap", "comments"], default="auto",
@@ -43,6 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--skip-start", type=float, default=90,
                    help="ignore the first N seconds of a recorded stream (greeting flood) (default 90)")
     d.add_argument("--min-rate", type=float, default=0.3, help="min messages/sec at a spike (default 0.3)")
+    d.add_argument("--min-jump", type=float, default=2.0,
+                   help="chat must reach this many times its normal rate to count as a spike (default 2.0)")
 
     c = p.add_argument_group("captions / output")
     c.add_argument("--no-captions", action="store_true", help="skip transcription and captions")
@@ -81,7 +83,8 @@ def detect_vod_spikes(url: str, info: dict, work: Path, args) -> tuple[list, str
             for i in range(min(int(args.skip_start), len(bins))):
                 bins[i] = 0.0
             return find_spikes(bins, window=args.window, baseline=args.baseline, threshold=args.threshold,
-                               min_gap=args.min_gap, top=args.top, min_rate=args.min_rate), "chat replay"
+                               min_gap=args.min_gap, top=args.top, min_rate=args.min_rate,
+                               min_jump=args.min_jump), "chat replay"
     elif args.source == "chat":
         print("This video has no chat replay.")
 

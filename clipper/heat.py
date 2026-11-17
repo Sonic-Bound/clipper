@@ -47,8 +47,8 @@ class HeatTracker:
         self.window = deque(maxlen=window)
         self.history = deque(maxlen=baseline)
 
-    def push(self, heat_this_second: float) -> tuple[float, float]:
-        """Returns (smoothed rate, z-score)."""
+    def push(self, heat_this_second: float) -> tuple[float, float, float]:
+        """Returns (smoothed rate, z-score, jump = rate / normal rate)."""
         self.window.append(heat_this_second)
         rate = sum(self.window) / len(self.window)
         if len(self.history) >= 30:
@@ -57,10 +57,71 @@ class HeatTracker:
             mad = median(abs(x - med) for x in hist)
             spread = max(1.4826 * mad, 0.25 * med, 0.2)
             z = (rate - med) / spread
+            jump = rate / max(med, 0.05)
         else:
-            z = 0.0
+            z, jump = 0.0, 1.0
         self.history.append(rate)
-        return rate, z
+        return rate, z, jump
+
+
+class LiveSpikeDetector:
+    """Decides, second by second, when a live chat spike should become a clip.
+
+    Rules, so a marathon with a huge, always-busy chat is not clipped end to end:
+      * the smoothed chat rate must clear the z-score threshold AND be at least
+        `min_jump` times the stream's normal rate (last `baseline` seconds);
+      * after a clip, chat must calm back down (z < 1 for 20 s) before another spike
+        counts, so one long hype wave gives one clip, not one a minute;
+      * at least `min_gap` seconds between clips, and at most `per_hour` clips in
+        any rolling hour (0 = no limit).
+    push() returns events: ("spike", sec, z, rate, jump), ("skip", sec, count) or
+    ("clip", peak_sec, z).
+    """
+
+    CALM_Z, CALM_SECS = 1.0, 20
+
+    def __init__(self, *, window=10, baseline=300, threshold=3.5, min_rate=0.3, min_jump=2.0,
+                 min_gap=60, per_hour=5):
+        self.tracker = HeatTracker(window, baseline)
+        self.window, self.threshold, self.min_rate, self.min_jump = window, threshold, min_rate, min_jump
+        self.min_gap, self.per_hour = min_gap, per_hour
+        self.spike = None  # [start_sec, peak_sec, peak_z]
+        self.last_peak = -1e9
+        self.calm, self.calm_secs = True, 0
+        self.clip_times: list[float] = []
+        self.limit_noted = False
+        self.last = (0.0, 0.0, 1.0)  # (rate, z, jump) of the latest second
+
+    def push(self, sec: int, heat: float) -> list[tuple]:
+        rate, z, jump = self.last = self.tracker.push(heat)
+        events: list[tuple] = []
+        if not self.calm:
+            self.calm_secs = self.calm_secs + 1 if z < self.CALM_Z else 0
+            self.calm = self.calm_secs >= self.CALM_SECS
+        hot = z >= self.threshold and rate >= self.min_rate and jump >= self.min_jump
+        if self.spike is None:
+            if hot and self.calm and sec - self.last_peak >= self.min_gap:
+                self.clip_times = [t for t in self.clip_times if sec - t < 3600]
+                if self.per_hour and len(self.clip_times) >= self.per_hour:
+                    if not self.limit_noted:
+                        events.append(("skip", sec, len(self.clip_times)))
+                        self.limit_noted = True
+                else:
+                    self.limit_noted = False
+                    self.spike = [sec, sec, z]
+                    events.append(("spike", sec, z, rate, jump))
+        else:
+            if z > self.spike[2]:
+                self.spike[1], self.spike[2] = sec, z
+            if z < self.threshold / 2 or sec - self.spike[0] > 30:
+                start, peak, peak_z = self.spike
+                self.last_peak = peak
+                self.clip_times.append(start)
+                self.calm, self.calm_secs = False, 0
+                self.spike = None
+                # the smoothing window trails, so the burst centre is ~window/2 earlier
+                events.append(("clip", peak - self.window / 2, peak_z))
+        return events
 
 
 def per_second(points: Iterable[tuple[float, float]], t0: float, length: int) -> list[float]:
@@ -81,24 +142,29 @@ def find_spikes(
     min_gap: int = 45,
     top: int = 10,
     min_rate: float = 0.3,
+    min_jump: float = 1.0,
 ) -> list[Spike]:
-    """Offline spike search over a whole video's per-second heat."""
+    """Offline spike search over a whole video's per-second heat.
+
+    A spike must clear the z-score threshold AND be at least `min_jump` times the
+    normal chat rate, so a chat that is busy all the time is not clipped constantly.
+    """
     tracker = HeatTracker(window, baseline)
     scored = [tracker.push(h) for h in bins]
 
     # The first minutes have no baseline yet; score them against the global median instead.
     if len(scored) > 30:
-        rates = sorted(r for r, _ in scored)
+        rates = sorted(s[0] for s in scored)
         med = rates[len(rates) // 2]
         mad = sorted(abs(r - med) for r in rates)[len(rates) // 2]
         spread = max(1.4826 * mad, 0.25 * med, 0.2)
         for i in range(min(baseline // 2, len(scored))):
-            r, _ = scored[i]
-            scored[i] = (r, (r - med) / spread)
+            r = scored[i][0]
+            scored[i] = (r, (r - med) / spread, r / max(med, 0.05))
 
     candidates = []
-    for i, (rate, z) in enumerate(scored):
-        if z < threshold or rate < min_rate:
+    for i, (rate, z, jump) in enumerate(scored):
+        if z < threshold or rate < min_rate or jump < min_jump:
             continue
         lo, hi = max(0, i - window), min(len(scored), i + window + 1)
         if z >= max(s[1] for s in scored[lo:hi]):

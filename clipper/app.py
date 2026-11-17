@@ -36,6 +36,7 @@ class JobIn(BaseModel):
     model: str = "small"
     language: str = ""
     threshold: float = 3.5
+    min_jump: float = 2.0
     pre: float = 25
     post: float = 10
     max_minutes: float = 0
@@ -99,7 +100,7 @@ def _ingest(job: Job, line: str) -> None:
 def _run(job: Job) -> None:
     sp = job.spec
     cmd = [*module_cmd("clipper"), sp.url, "-o", str(CLIPS), "-n", str(sp.top),
-           "--model", sp.model, "--threshold", str(sp.threshold), "--pre", str(sp.pre), "--post", str(sp.post),
+           "--model", sp.model, "--threshold", str(sp.threshold), "--min-jump", str(sp.min_jump), "--pre", str(sp.pre), "--post", str(sp.post),
            "--stop-file", str(job.stop_file)]
     if not sp.vertical:
         cmd.append("--horizontal")
