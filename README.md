@@ -40,7 +40,7 @@ Speech is transcribed **on your PC** with Whisper, so nothing is uploaded anywhe
 
 ## Install
 
-1. **[Download Clipper-windows-x64.zip](https://github.com/Sonic-Bound/clipper/releases/latest/download/Clipper-windows-x64.zip)** (about 190 MB)
+1. **[Download Clipper-windows-x64.zip](https://github.com/Sonic-Bound/clipper/releases/latest/download/Clipper-windows-x64.zip)** (about 200 MB)
 2. Right-click the zip → **Extract All…**, and put the folder wherever you like (e.g. `Documents\Clipper`).
 3. Open the folder and double-click **`Clipper.exe`**.
 
