@@ -23,7 +23,11 @@ No billing account or payment details are needed.
 2. **App name:** `Clipper`. **User support email:** your email. Press **Next**.
 3. **Audience:** choose **External**. Press **Next**.
 4. **Contact information:** your email. Press **Next**, agree to the policy, and press **Create**.
-5. Open **[Audience](https://console.cloud.google.com/auth/audience)** and press **Publish app**, then **Confirm**.
+5. Open **[Branding](https://console.cloud.google.com/auth/branding)** and fill in (Google needs these before the app can be published):
+   - **Application home page:** `https://github.com/Sonic-Bound/clipper`
+   - **Application privacy policy link:** `https://github.com/Sonic-Bound/clipper/blob/main/PRIVACY.md`
+   - Leave the logo empty (adding one makes Google review the app first), and press **Save**.
+6. Open **[Audience](https://console.cloud.google.com/auth/audience)** and press **Publish app** (or choose **In production**), then **Confirm**.
 
 > [!IMPORTANT]
 > Don't skip **Publish app**. While an app is in *Testing*, Google signs you out of it every 7 days and Clipper would stop uploading. Publishing does **not** make anything public or send the app for review; it only stops the 7-day sign-out.
@@ -66,7 +70,8 @@ No billing account or payment details are needed.
 |---|---|
 | "That doesn't look like an OAuth client ID" | Copy the **Client ID**, not the project ID or the client name. It ends in `.apps.googleusercontent.com`. |
 | Google shows "Access blocked: Clipper can only be used within its organization" (Error 403: org_internal) | The audience is set to *Internal*. Open [Audience](https://console.cloud.google.com/auth/audience), press **Make external**, then **Publish app**, and connect again. Your client ID stays the same. |
-| Google shows "Access blocked: … has not completed the Google verification process" | The app is still in *Testing*. Do step 3.5 (**Publish app**), or add your Google account under **Audience → Test users**. |
+| "Valid app name, support email, homepage url, and privacy policy url are required…" when publishing | Fill in the **Branding** page as in step 3.5, then publish again. |
+| Google shows "Access blocked: … has not completed the Google verification process" | The app is still in *Testing*. Do step 3.6 (**Publish app**), or add your Google account under **Audience → Test users**. |
 | Google shows "Error 400: redirect_uri_mismatch" | The client isn't a **Desktop app**. Create a new client of type Desktop app (step 4). |
 | "This Google account has no YouTube channel yet" | Sign in to [youtube.com](https://youtube.com) with that account and create a channel, then connect again. |
 | Uploads say "YouTube sign-in expired" | Press **YouTube → Connect YouTube** again. This happens if you removed Clipper's access in your Google account, or if the app is still in *Testing*. |
