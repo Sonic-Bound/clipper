@@ -4,7 +4,7 @@
 ; Output: dist\Clipper-Setup.exe
 
 #define AppName "Clipper"
-#define AppVersion "1.2.1"
+#define AppVersion "1.3.0"
 #define AppPublisher "Sonic-Bound"
 #define AppURL "https://github.com/Sonic-Bound/clipper"
 

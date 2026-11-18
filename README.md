@@ -59,6 +59,7 @@ Everything Clipper needs (Python, ffmpeg, yt-dlp, Whisper) is included; there is
 - **Vertical 9:16** and **Captions** are on by default; click them to turn off.
 - **Settings** sets how many clips to cut (on live streams: at most that many per hour), sensitivity (how big a jump in chat counts), seconds before and after the peak, caption quality (Fastest → Best), and spoken language. Your choices are remembered.
 - **Live streams** are watched until you press **Stop** or the stream ends, even for many hours. If your internet drops or YouTube's stream link expires, Clipper checks whether the stream is still live and reconnects by itself (it keeps trying for 15 minutes). Clips that are in progress are finished first.
+- **Publish to YouTube:** connect your channel once (**YouTube** button, top right; [setup guide](docs/youtube-setup.md)) and turn on **Upload to YouTube**. Each clip is uploaded as soon as it is made, vertical clips as Shorts. YouTube keeps uploads from new Google apps private until the app passes Google's review, and allows about 6 uploads a day; extra clips wait and upload the next day.
 - **Delete** moves a clip to `Videos\Clipper\_deleted`, so you can get it back.
 - Each job's **Show log** shows exactly what it is doing. If the app itself won't open, the reason is in `%LOCALAPPDATA%\Clipper\clipper.log`.
 

@@ -15,11 +15,12 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from .runtime import FROZEN, SOURCE_ROOT, clips_dir, module_cmd
+from .youtube import PRIVACY, AuthError, Uploader, YouTubeAccount
 
 CLIPS = clips_dir()
 WEB = Path(__file__).resolve().parent / "web"
@@ -27,6 +28,22 @@ PORT = int(os.environ.get("CLIPPER_PORT", "8765"))
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console windows popping up from the desktop app
 
 app = FastAPI(title="Clipper")
+
+
+def _applog(msg: str) -> None:
+    log_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Clipper"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_dir / "clipper.log", "a", encoding="utf-8") as fh:
+        fh.write(time.strftime("%Y-%m-%d %H:%M:%S ") + msg + "\n")
+
+
+YT = YouTubeAccount()
+UPLOADER = Uploader(YT, lambda: CLIPS, log=lambda m: _applog("youtube: " + m))
+
+
+@app.on_event("startup")
+def _start_uploader() -> None:
+    UPLOADER.start()
 
 
 class JobIn(BaseModel):
@@ -41,6 +58,7 @@ class JobIn(BaseModel):
     pre: float = 25
     post: float = 10
     max_minutes: float = 0
+    upload: bool = False  # publish each clip to YouTube as soon as it is made
 
 
 class Job:
@@ -90,6 +108,11 @@ def _ingest(job: Job, line: str) -> None:
     s = line.strip()
     if s.startswith("✔"):
         job.clips += 1
+        # videos print "✔ <path>", live streams "✔ saved <path>"
+        m = re.match(r"^✔\s+(?:saved\s+)?(.+\.mp4)$", s)
+        if job.spec.upload and m:
+            clip = Path(m.group(1).strip())
+            UPLOADER.enqueue(clip.parent.name, clip.name)
     m = re.match(r"^\[(\d+)/(\d+)\]", s)
     if m:
         job.progress = f"{m.group(1)}/{m.group(2)}"
@@ -225,6 +248,7 @@ def list_clips():
                 "youtube": m.get("url") or (f"https://youtu.be/{vid[1]}" if vid else None),
                 "size": f.stat().st_size, "created": f.stat().st_mtime,
                 "live": "stream_time" in m,
+                "upload": _upload_view(folder.name, f.name),
             })
     out.sort(key=lambda c: c["created"], reverse=True)
     return out
@@ -268,10 +292,109 @@ def delete_clip(body: FolderIn):
     trash = CLIPS / "_deleted" / body.folder
     trash.mkdir(parents=True, exist_ok=True)
     stem = Path(body.file).stem
+    UPLOADER.cancel(body.folder, body.file)
     for ext in (".mp4", ".srt", ".ass"):
         f = folder / (stem + ext)
         if f.exists():
             f.replace(trash / f.name)
+    return {"ok": True}
+
+
+def _upload_view(folder: str, file: str) -> dict | None:
+    u = UPLOADER.get(folder, file)
+    if not u:
+        return None
+    return {k: u.get(k) for k in ("status", "url", "error", "progress", "privacy")}
+
+
+# ------------------------------------------------------------------ YouTube
+
+class YTClientIn(BaseModel):
+    client_id: str = ""
+    client_secret: str = ""
+    client_json: str = ""
+
+
+class YTSettingsIn(BaseModel):
+    privacy: str = "private"
+
+
+@app.get("/api/youtube")
+def youtube_status():
+    return {**YT.status(), **UPLOADER.summary()}
+
+
+@app.post("/api/youtube/client")
+def youtube_client(body: YTClientIn):
+    try:
+        YT.set_client(body.client_id, body.client_secret, body.client_json)
+    except (ValueError, json.JSONDecodeError) as e:
+        raise HTTPException(400, str(e)) from e
+    return youtube_status()
+
+
+@app.post("/api/youtube/connect")
+def youtube_connect(request: Request):
+    try:
+        url = YT.auth_url(f"http://127.0.0.1:{request.url.port}/oauth/callback")
+    except AuthError as e:
+        raise HTTPException(400, str(e)) from e
+    webbrowser.open(url)  # sign in happens in the user's normal browser
+    return {"url": url}
+
+
+_CALLBACK_PAGE = """<!doctype html><meta charset="utf-8"><title>Clipper</title>
+<body style="font:16px 'Segoe UI',sans-serif;background:#0d0f14;color:#e9ecf2;display:grid;place-items:center;height:90vh">
+<div style="text-align:center;max-width:520px"><div style="font-size:42px">{icon}</div><h2>{head}</h2>
+<p style="color:#8c93a4">{text}</p></div></body>"""
+
+
+@app.get("/oauth/callback", response_class=HTMLResponse)
+def oauth_callback(code: str = "", state: str = "", error: str = ""):
+    from html import escape
+
+    if error or not code:
+        msg = "You cancelled the sign-in." if error == "access_denied" else f"Google said: {error or 'no code'}"
+        return _CALLBACK_PAGE.format(icon="✕", head="YouTube was not connected", text=escape(msg))
+    try:
+        channel = YT.finish_auth(code, state)
+    except Exception as e:  # noqa: BLE001
+        _applog(f"youtube: sign-in failed: {e}")
+        return _CALLBACK_PAGE.format(icon="✕", head="YouTube was not connected", text=escape(str(e)))
+    UPLOADER.resume()
+    _applog(f"youtube: connected to channel {channel!r}")
+    return _CALLBACK_PAGE.format(icon="✓", head=f"Connected to {escape(channel)}",
+                                 text="You can close this tab and go back to Clipper.")
+
+
+@app.post("/api/youtube/settings")
+def youtube_settings(body: YTSettingsIn):
+    try:
+        YT.set_privacy(body.privacy)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return youtube_status()
+
+
+@app.post("/api/youtube/disconnect")
+def youtube_disconnect():
+    YT.disconnect()
+    return youtube_status()
+
+
+@app.post("/api/youtube/upload")
+def youtube_upload(body: FolderIn):
+    if not (CLIPS / body.folder / body.file).is_file():
+        _404()
+    u = UPLOADER.enqueue(body.folder, body.file, force=True)
+    if UPLOADER.paused_until and "sign-in" not in UPLOADER.pause_reason and "limit" not in UPLOADER.pause_reason:
+        UPLOADER.resume()
+    return _upload_view(body.folder, body.file) or u
+
+
+@app.post("/api/youtube/cancel")
+def youtube_cancel(body: FolderIn):
+    UPLOADER.cancel(body.folder, body.file)
     return {"ok": True}
 
 

@@ -109,6 +109,31 @@
   .clip-actions .btn { flex: 1; justify-content: center; }
   .clip-actions .btn.icon { flex: 0 0 auto; padding: 5px 8px; }
 
+  /* YouTube */
+  .yt-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .yt-dot.on { background: var(--ok); box-shadow: 0 0 0 3px #3ccf9122; }
+  .yt-panel { display: none; margin-bottom: 18px; }
+  .yt-panel.open { display: block; }
+  .yt-panel h3 { margin: 0 0 4px; font-size: 16px; display: flex; align-items: center; gap: 10px; }
+  .yt-panel h3 .x { margin-left: auto; }
+  .yt-panel p { margin: 6px 0; color: var(--muted); }
+  .yt-panel ol { margin: 8px 0 14px; padding-left: 20px; color: var(--muted); }
+  .yt-panel ol li { margin: 3px 0; }
+  .yt-panel ol b, .yt-panel p b { color: var(--text); font-weight: 600; }
+  .yt-panel a { color: #ff9aa4; }
+  .yt-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .yt-row input[type=text], .yt-row input[type=password] { flex: 1 1 260px; height: 38px; padding: 0 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg); outline: none; }
+  .yt-row select { height: 36px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); padding: 0 10px; }
+  .note { font-size: 12.5px; padding: 9px 12px; border-radius: 10px; background: #ffb54712; border: 1px solid #ffb54733; color: #ffd38a; margin-top: 12px; }
+  .note b { color: #ffe2ad; }
+  .yt-status { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-height: 18px; }
+  .yt-status a { color: var(--ok); text-decoration: none; font-weight: 600; }
+  .yt-status a:hover { text-decoration: underline; }
+  .yt-status.failed, .yt-status.waiting { color: var(--warn); }
+  .yt-status .mini { height: 3px; flex: 1; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+  .yt-status .mini > div { height: 100%; background: var(--ok); transition: width .4s; }
+
   .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0;
     background: #232836; border: 1px solid #333a4b; padding: 10px 16px; border-radius: 10px; transition: .25s; pointer-events: none; }
   .toast.show { opacity: 1; transform: translateX(-50%); }
@@ -130,11 +155,20 @@
       <p>Clips the moments where YouTube chat blows up, with captions.</p>
     </div>
     <div class="spacer"></div>
+    <button class="btn" onclick="toggleYT()" id="ytBtn" title="Publish clips to your YouTube channel">
+      <span class="yt-dot" id="ytDot"></span><span id="ytBtnText">YouTube</span>
+    </button>
     <button class="btn" onclick="reveal()">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5v8h13v-6.5h-7l-1.5-1.5z"/></svg>
       Clips folder
     </button>
   </header>
+
+  <section class="composer yt-panel" id="ytPanel">
+    <h3><span class="yt-dot" id="ytDot2"></span>Publish to YouTube
+      <button class="btn small x" onclick="toggleYT(false)" title="Close">✕</button></h3>
+    <div id="ytBody"></div>
+  </section>
 
   <section class="composer">
     <form class="url-row" onsubmit="startJob(event)">
@@ -144,6 +178,7 @@
     <div class="opts">
       <label class="chip"><input type="checkbox" id="vertical" checked><span class="dot"></span>Vertical 9:16</label>
       <label class="chip"><input type="checkbox" id="captions" checked><span class="dot"></span>Captions</label>
+      <label class="chip" title="Publish each clip to your YouTube channel as soon as it is made"><input type="checkbox" id="upload" onchange="uploadToggled()"><span class="dot"></span>Upload to YouTube</label>
       <button class="toggle-adv" type="button" onclick="toggleAdv()" id="advBtn">Settings ▾</button>
     </div>
     <div class="adv" id="adv">
@@ -209,8 +244,8 @@
 const $ = (id) => document.getElementById(id);
 // [z-score threshold, label, how many times its normal rate chat must reach]
 const SENS = { 1: [5.0, "Low", 3.0], 2: [4.2, "Lower", 2.5], 3: [3.5, "Normal", 2.0], 4: [2.8, "Higher", 1.7], 5: [2.2, "High", 1.5] };
-const PREF_KEYS = ["vertical", "captions", "top", "sens", "pre", "post", "model", "language", "maxmin"];
-let clips = [], jobsSig = "", openLogs = new Set();
+const PREF_KEYS = ["vertical", "captions", "upload", "top", "sens", "pre", "post", "model", "language", "maxmin"];
+let clips = [], jobsSig = "", openLogs = new Set(), yt = {};
 
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400); }
@@ -241,7 +276,14 @@ async function startJob(e) {
     url: $("url").value, top: +$("top").value || 5, vertical: $("vertical").checked, captions: $("captions").checked,
     model: $("model").value, language: $("language").value, threshold: SENS[$("sens").value][0], min_jump: SENS[$("sens").value][2],
     pre: +$("pre").value || 25, post: +$("post").value || 10, max_minutes: +$("maxmin").value || 0,
+    upload: $("upload").checked,
   };
+  if (body.upload && !yt.connected) {
+    toggleYT(true);
+    $("err").textContent = "Connect your YouTube channel first, or turn off “Upload to YouTube”.";
+    $("err").style.display = "block";
+    return;
+  }
   $("go").disabled = true;
   try { await api("/api/jobs", { method: "POST", body: JSON.stringify(body) }); $("url").value = ""; toast("Started"); refreshJobs(); }
   catch (err) { $("err").textContent = err.message; $("err").style.display = "block"; }
@@ -327,7 +369,7 @@ function renderClips() {
   const grid = $("grid");
   // keep existing video elements (don't interrupt playback) when nothing changed
   const sig = list.map(c => c.src + c.size).join("|");
-  if (grid._sig === sig) return;
+  if (grid._sig === sig) { updateUploads(list); return; }
   grid._sig = sig;
   grid.innerHTML = list.map(c => `
     <div class="clip" data-src="${esc(c.src)}">
@@ -338,6 +380,7 @@ function renderClips() {
         <div class="clip-title" title="${esc(c.title)}">${esc(c.title)}</div>
         <div class="clip-meta"><span style="color:var(--muted)">at</span> <b>${esc(c.moment)}</b>
           ${c.score != null ? `<span class="heat" title="How far chat rose above normal">🔥 ${(+c.score).toFixed(1)}</span>` : ""}</div>
+        <div class="yt-status ${c.upload ? c.upload.status : ""}" data-key="${esc(c.folder + "/" + c.file)}">${uploadHTML(c)}</div>
         <div class="clip-actions">
           <a class="btn small" href="${esc(c.src)}" download="${esc(c.file)}">Download</a>
           <button class="btn small icon" title="Show in folder" onclick='reveal(${JSON.stringify(c.folder)}, ${JSON.stringify(c.file)})'>
@@ -349,6 +392,134 @@ function renderClips() {
         </div>
       </div>
     </div>`).join("");
+}
+
+// ------------------------------------------------------------ YouTube
+const PRIV = { private: "Private", unlisted: "Unlisted", public: "Public" };
+const GUIDE = "https://github.com/Sonic-Bound/clipper/blob/main/docs/youtube-setup.md";
+
+function uploadHTML(c) {
+  const u = c.upload, args = `${JSON.stringify(c.folder)}, ${JSON.stringify(c.file)}`;
+  const up = `<button class="linkish" onclick='uploadClip(${args})'>Upload to YouTube</button>`;
+  if (!u) return yt.connected ? up : "";
+  if (u.status === "done") return `<a href="${esc(u.url)}" target="_blank" rel="noopener">▶ On YouTube</a><span>· ${PRIV[u.privacy] || ""}</span>`;
+  if (u.status === "uploading") {
+    const p = Math.round((u.progress || 0) * 100);
+    return `<span>Uploading ${p}%</span><span class="mini"><div style="width:${p}%"></div></span>`;
+  }
+  if (u.status === "queued") return `<span>${yt.connected ? "Waiting to upload…" : "Waits until YouTube is connected"}</span>
+    <button class="linkish" onclick='cancelUpload(${args})'>Cancel</button>`;
+  if (u.status === "waiting") return `<span title="${esc(u.error)}">⏳ ${/limit/i.test(u.error || "") ? "Daily YouTube limit, uploads later" : esc(u.error || "Waiting")}</span>`;
+  if (u.status === "failed") return `<span title="${esc(u.error)}">⚠ Upload failed</span><button class="linkish" onclick='uploadClip(${args})'>Retry</button>`;
+  return "";
+}
+
+function updateUploads(list) {
+  const byKey = Object.fromEntries(list.map(c => [c.folder + "/" + c.file, c]));
+  document.querySelectorAll(".yt-status").forEach(el => {
+    const c = byKey[el.dataset.key];
+    if (!c) return;
+    const html = uploadHTML(c);
+    if (el._html !== html) { el.innerHTML = html; el._html = html; el.className = "yt-status " + (c.upload ? c.upload.status : ""); }
+  });
+}
+
+async function uploadClip(folder, file) {
+  if (!yt.connected) { toggleYT(true); toast("Connect YouTube first"); return; }
+  try { await api("/api/youtube/upload", { method: "POST", body: JSON.stringify({ folder, file }) }); toast("Added to the upload queue"); refreshClips(); }
+  catch (e) { toast(e.message); }
+}
+async function cancelUpload(folder, file) {
+  await api("/api/youtube/cancel", { method: "POST", body: JSON.stringify({ folder, file }) });
+  refreshClips();
+}
+function uploadToggled() { if ($("upload").checked && !yt.connected) toggleYT(true); }
+function toggleYT(force) {
+  const p = $("ytPanel");
+  p.classList.toggle("open", force ?? !p.classList.contains("open"));
+  if (p.classList.contains("open")) refreshYT(true);
+}
+
+async function refreshYT(render) {
+  const was = yt.connected;
+  try { yt = await api("/api/youtube"); } catch (e) { return; }
+  for (const d of [$("ytDot"), $("ytDot2")]) d.classList.toggle("on", !!yt.connected);
+  $("ytBtnText").textContent = yt.connected ? (yt.channel || "YouTube") : "YouTube";
+  if (render || $("ytPanel").classList.contains("open")) renderYT();
+  if (was !== yt.connected) { $("grid")._sig = ""; renderClips(); }
+}
+
+function renderYT() {
+  const b = $("ytBody");
+  const typing = b.contains(document.activeElement) && ["INPUT", "SELECT"].includes(document.activeElement.tagName);
+  const view = !yt.configured || yt._editClient ? "setup" : !yt.connected ? "connect" : "connected";
+  if (typing && b.dataset.view === view) return; // don't wipe what is being typed
+  b.dataset.view = view;
+  if (view === "setup") {
+    b.innerHTML = `<p>Clipper uploads through <b>your own</b> free Google Cloud app, so only you have access to your channel. One-time setup, about 10 minutes:</p>
+      <ol>
+        <li>In <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud Console</a>, create a project (any name).</li>
+        <li>Turn on the <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener"><b>YouTube Data API v3</b></a> for it.</li>
+        <li>Open <a href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noopener"><b>Google Auth Platform</b></a>, press <b>Get started</b> and choose <b>External</b>. Then under <b>Audience</b>, press <b>Publish app</b>.</li>
+        <li>Under <a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener"><b>Clients</b></a>, create a client of type <b>Desktop app</b>.</li>
+        <li>Copy its <b>Client ID</b> and <b>Client secret</b> into the boxes below.</li>
+      </ol>
+      <p>More detail on each step: <a href="${GUIDE}" target="_blank" rel="noopener">setup guide</a>.</p>
+      <div class="yt-row"><input type="text" id="ytId" placeholder="Client ID (ends in .apps.googleusercontent.com)" autocomplete="off" spellcheck="false">
+        <input type="password" id="ytSecret" placeholder="Client secret" autocomplete="off">
+        <button class="btn primary" style="height:38px;padding:0 18px" onclick="saveClient()">Save</button></div>
+      <div class="error" id="ytErr"></div>`;
+    return;
+  }
+  if (view === "connect") {
+    b.innerHTML = `<p>Your Google app is set up. Now sign in with the Google account that owns your YouTube channel.</p>
+      <div class="yt-row"><button class="btn primary" style="height:40px;padding:0 20px" onclick="connectYT()">Connect YouTube</button>
+        <button class="linkish" onclick="editClient()">Use a different client ID</button></div>
+      <div class="note">Google's sign-in opens in your browser. Because the Google app is your own and not reviewed by Google, it shows
+        <b>“Google hasn’t verified this app”</b>: click <b>Advanced</b>, then <b>Go to … (unsafe)</b>, then <b>Continue</b>.</div>
+      <div class="error" id="ytErr"></div>`;
+    return;
+  }
+  const c = yt.counts || {}, pending = (c.queued || 0) + (c.uploading || 0) + (c.waiting || 0);
+  b.innerHTML = `<p>Connected to <b>${esc(yt.channel)}</b>. Turn on <b>Upload to YouTube</b> under the link box, and each clip
+      is published as soon as it is made. You can also upload any clip from its card.</p>
+    <div class="yt-row"><label for="ytPriv" style="color:var(--muted)">New uploads are</label>
+      <select id="ytPriv" onchange="savePrivacy()">${Object.entries(PRIV).map(([k, v]) => `<option value="${k}" ${k === yt.privacy ? "selected" : ""}>${v}</option>`).join("")}</select>
+      <span style="color:var(--muted)">· ${yt.uploaded_24h || 0} uploaded in the last 24 h${pending ? ` · ${pending} waiting` : ""}</span>
+      <span style="flex:1"></span>
+      <button class="btn small danger" onclick="disconnectYT()">Disconnect</button></div>
+    ${yt.pause_reason ? `<div class="note">${esc(yt.pause_reason)}</div>` : ""}
+    <div class="note">YouTube keeps uploads from new, unreviewed Google apps <b>private</b> whatever you choose here, until Google
+      approves the app through its <a href="https://support.google.com/youtube/contact/yt_api_form" target="_blank" rel="noopener">API audit</a>.
+      Until then, make clips public in YouTube Studio. The free allowance is about <b>6 uploads a day</b>; the rest wait for the next day.</div>`;
+}
+
+function editClient() { yt._editClient = true; renderYT(); }
+async function saveClient() {
+  try {
+    yt = await api("/api/youtube/client", { method: "POST", body: JSON.stringify({ client_id: $("ytId").value, client_secret: $("ytSecret").value }) });
+    document.activeElement.blur(); renderYT();
+  } catch (e) { $("ytErr").textContent = e.message; $("ytErr").style.display = "block"; }
+}
+async function connectYT() {
+  try {
+    await api("/api/youtube/connect", { method: "POST" });
+    toast("Finish signing in in your browser");
+    const t = setInterval(async () => {
+      await refreshYT();
+      if (yt.connected) { clearInterval(t); toast(`Connected to ${yt.channel}`); refreshClips(); }
+    }, 2000);
+    setTimeout(() => clearInterval(t), 10 * 60 * 1000);
+  } catch (e) { $("ytErr").textContent = e.message; $("ytErr").style.display = "block"; }
+}
+async function savePrivacy() {
+  yt = await api("/api/youtube/settings", { method: "POST", body: JSON.stringify({ privacy: $("ytPriv").value }) });
+  toast(`New uploads: ${PRIV[yt.privacy]}`);
+}
+async function disconnectYT() {
+  if (!confirm("Disconnect YouTube? Clipper stops uploading until you connect again.")) return;
+  yt = await api("/api/youtube/disconnect", { method: "POST" });
+  renderYT(); refreshYT(); refreshClips();
 }
 
 async function reveal(folder = "", file = "") { try { await api("/api/reveal", { method: "POST", body: JSON.stringify({ folder, file }) }); } catch (e) { toast(e.message); } }
@@ -363,9 +534,13 @@ function reportVideo(v) { clientLog(`video error code=${v.error && v.error.code}
 window.addEventListener("error", e => clientLog(`js error: ${e.message} @${e.lineno}`));
 
 loadPrefs();
+refreshYT();
 refreshJobs(true);
 refreshClips();
 setInterval(refreshJobs, 1500);
+setInterval(refreshYT, 5000);
+// poll clips quickly while something is uploading, slowly otherwise
+setInterval(() => { if (clips.some(c => c.upload && ["queued", "uploading"].includes(c.upload.status))) refreshClips(); }, 2000);
 setInterval(refreshClips, 15000);
 </script>
 </body>
