@@ -65,6 +65,7 @@ No billing account or payment details are needed.
 | What you see | What to do |
 |---|---|
 | "That doesn't look like an OAuth client ID" | Copy the **Client ID**, not the project ID or the client name. It ends in `.apps.googleusercontent.com`. |
+| Google shows "Access blocked: Clipper can only be used within its organization" (Error 403: org_internal) | The audience is set to *Internal*. Open [Audience](https://console.cloud.google.com/auth/audience), press **Make external**, then **Publish app**, and connect again. Your client ID stays the same. |
 | Google shows "Access blocked: … has not completed the Google verification process" | The app is still in *Testing*. Do step 3.5 (**Publish app**), or add your Google account under **Audience → Test users**. |
 | Google shows "Error 400: redirect_uri_mismatch" | The client isn't a **Desktop app**. Create a new client of type Desktop app (step 4). |
 | "This Google account has no YouTube channel yet" | Sign in to [youtube.com](https://youtube.com) with that account and create a channel, then connect again. |
