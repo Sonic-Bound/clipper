@@ -1,10 +1,10 @@
-; Inno Setup script for Clipper-Setup.exe
+﻿; Inno Setup script for Clipper-Setup.exe
 ; Build the app first (PyInstaller Clipper.spec), then:
 ;   "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer.iss
 ; Output: dist\Clipper-Setup.exe
 
 #define AppName "Clipper"
-#define AppVersion "1.2.0"
+#define AppVersion "1.2.1"
 #define AppPublisher "Sonic-Bound"
 #define AppURL "https://github.com/Sonic-Bound/clipper"
 

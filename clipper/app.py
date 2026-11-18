@@ -13,6 +13,7 @@ import time
 import uuid
 import webbrowser
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
@@ -214,8 +215,10 @@ def list_clips():
             moment = re.search(r"(\d+)h(\d+)m(\d+)s", f.stem)
             out.append({
                 "folder": folder.name, "title": title, "file": f.name,
-                "src": f"/media/{folder.name}/{f.name}",
-                "srt": (f"/media/{folder.name}/{f.with_suffix('.srt').name}" if f.with_suffix(".srt").exists() else None),
+                # quote(): titles can contain '#', '?' or '%', which would otherwise break the address
+                "src": f"/media/{quote(folder.name, safe='')}/{quote(f.name, safe='')}",
+                "srt": (f"/media/{quote(folder.name, safe='')}/{quote(f.with_suffix('.srt').name, safe='')}"
+                        if f.with_suffix(".srt").exists() else None),
                 "moment": f"{int(moment[1])}:{moment[2]}:{moment[3]}" if moment and int(moment[1]) else
                           (f"{int(moment[2])}:{moment[3]}" if moment else ""),
                 "score": m.get("score"), "source": m.get("source", "live chat" if "stream_time" in m else ""),
